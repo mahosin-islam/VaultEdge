@@ -129,7 +129,7 @@ export function CustomerSidebar() {
       {/* Brand Header */}
       <div className="mb-4 flex items-center justify-between px-2">
         <Link
-          href="/customer"
+          href="/"
           onClick={closeMobile}
           className="flex items-center gap-2.5"
         >
@@ -172,8 +172,8 @@ export function CustomerSidebar() {
               href={item.href}
               onClick={closeMobile}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isActive
-                  ? "bg-accent-subtle text-accent border border-accent-border font-semibold"
-                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary border border-transparent"
+                ? "bg-accent-subtle text-accent border border-accent-border font-semibold"
+                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary border border-transparent"
                 }`}
             >
               <CustomerNavIcon icon={item.icon} />
