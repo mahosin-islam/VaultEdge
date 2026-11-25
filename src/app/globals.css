@@ -1,26 +1,236 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================================
+ * VaultEdge — Global Design Token System
+ * Mandatory Rule: Zero hardcoded colors in components/pages.
+ * Default root theme is Dark Mode (`:root`, `[data-theme="dark"]`, `.dark`).
+ * Light Mode is activated via `[data-theme="light"]` or `.light`.
+ * ============================================================================ */
+
+:root,
+[data-theme="dark"],
+.dark {
+  color-scheme: dark;
+
+  /* Core Brand Tokens (Dark Mode - Primary Brand Theme) */
+  --ve-bg-primary: #0B1424;
+  --ve-bg-secondary: #0F1B2E;
+  --ve-bg-elevated: #132034;
+  --ve-bg-glass: rgba(11, 20, 36, 0.85);
+  --ve-surface: #17263A;
+  --ve-surface-hover: #1D2F47;
+  --ve-surface-muted: #111D2F;
+  --ve-surface-card-inner: #121E30;
+
+  /* Typography & Text Tokens */
+  --ve-text-primary: #F8FAFC;
+  --ve-text-secondary: #AAB7C7;
+  --ve-text-muted: #7C8CA1;
+  --ve-text-on-accent: #0B1424;
+
+  /* Accent & Brand Gold Tokens */
+  --ve-accent: #D6B77A;
+  --ve-accent-hover: #E2C68D;
+  --ve-accent-active: #C5A568;
+  --ve-accent-subtle: rgba(214, 183, 122, 0.12);
+  --ve-accent-border: rgba(214, 183, 122, 0.32);
+
+  /* Border & Divider Tokens */
+  --ve-border: #2A3A50;
+  --ve-border-subtle: rgba(42, 58, 80, 0.65);
+  --ve-border-strong: #384C68;
+
+  /* Button Tokens */
+  --ve-btn-primary-bg: #D6B77A;
+  --ve-btn-primary-hover: #E2C68D;
+  --ve-btn-primary-text: #0B1424;
+  --ve-btn-secondary-bg: #17263A;
+  --ve-btn-secondary-hover: #1F324C;
+  --ve-btn-secondary-text: #F8FAFC;
+  --ve-btn-secondary-border: #2A3A50;
+
+  /* Input & Focus Tokens */
+  --ve-input-bg: #121E30;
+  --ve-input-border: #2A3A50;
+  --ve-focus-ring: rgba(214, 183, 122, 0.45);
+
+  /* Semantic Status Tokens */
+  --ve-status-success: #34D399;
+  --ve-status-success-bg: rgba(52, 211, 153, 0.12);
+  --ve-status-success-border: rgba(52, 211, 153, 0.28);
+
+  --ve-status-warning: #D6B77A;
+  --ve-status-warning-bg: rgba(214, 183, 122, 0.14);
+  --ve-status-warning-border: rgba(214, 183, 122, 0.32);
+
+  --ve-status-danger: #F87171;
+  --ve-status-danger-bg: rgba(248, 113, 113, 0.12);
+  --ve-status-danger-border: rgba(248, 113, 113, 0.28);
+
+  --ve-status-info: #60A5FA;
+  --ve-status-info-bg: rgba(96, 165, 250, 0.12);
+  --ve-status-info-border: rgba(96, 165, 250, 0.28);
+
+  /* Shadows & Overlays */
+  --ve-shadow-card: 0 20px 45px -15px rgba(4, 9, 18, 0.65);
+  --ve-shadow-elevated: 0 25px 60px -15px rgba(3, 7, 15, 0.8);
+  --ve-hero-glow: radial-gradient(circle at 75% 25%, rgba(214, 183, 122, 0.08), transparent 55%);
+  --ve-cta-gradient: linear-gradient(180deg, rgba(23, 38, 58, 0.72) 0%, rgba(15, 27, 46, 0.92) 100%);
+}
+
+[data-theme="light"],
+.light {
+  color-scheme: light;
+
+  /* Core Brand Tokens (Light Mode) */
+  --ve-bg-primary: #F5F7FA;
+  --ve-bg-secondary: #EEF2F7;
+  --ve-bg-elevated: #FFFFFF;
+  --ve-bg-glass: rgba(245, 247, 250, 0.88);
+  --ve-surface: #FFFFFF;
+  --ve-surface-hover: #F8FAFC;
+  --ve-surface-muted: #EEF2F7;
+  --ve-surface-card-inner: #F5F7FA;
+
+  /* Typography & Text Tokens */
+  --ve-text-primary: #17263A;
+  --ve-text-secondary: #64748B;
+  --ve-text-muted: #7C8CA1;
+  --ve-text-on-accent: #17263A;
+
+  /* Accent & Brand Gold Tokens */
+  --ve-accent: #C5A568;
+  --ve-accent-hover: #B59457;
+  --ve-accent-active: #A38348;
+  --ve-accent-subtle: rgba(197, 165, 104, 0.14);
+  --ve-accent-border: rgba(197, 165, 104, 0.38);
+
+  /* Border & Divider Tokens */
+  --ve-border: #E2E8F0;
+  --ve-border-subtle: rgba(226, 232, 240, 0.85);
+  --ve-border-strong: #CBD5E1;
+
+  /* Button Tokens */
+  --ve-btn-primary-bg: #C5A568;
+  --ve-btn-primary-hover: #B59457;
+  --ve-btn-primary-text: #17263A;
+  --ve-btn-secondary-bg: #FFFFFF;
+  --ve-btn-secondary-hover: #EEF2F7;
+  --ve-btn-secondary-text: #17263A;
+  --ve-btn-secondary-border: #E2E8F0;
+
+  /* Input & Focus Tokens */
+  --ve-input-bg: #F5F7FA;
+  --ve-input-border: #E2E8F0;
+  --ve-focus-ring: rgba(197, 165, 104, 0.4);
+
+  /* Semantic Status Tokens */
+  --ve-status-success: #059669;
+  --ve-status-success-bg: rgba(5, 150, 105, 0.1);
+  --ve-status-success-border: rgba(5, 150, 105, 0.25);
+
+  --ve-status-warning: #B59457;
+  --ve-status-warning-bg: rgba(197, 165, 104, 0.15);
+  --ve-status-warning-border: rgba(197, 165, 104, 0.35);
+
+  --ve-status-danger: #DC2626;
+  --ve-status-danger-bg: rgba(220, 38, 38, 0.1);
+  --ve-status-danger-border: rgba(220, 38, 38, 0.25);
+
+  --ve-status-info: #2563EB;
+  --ve-status-info-bg: rgba(37, 99, 235, 0.1);
+  --ve-status-info-border: rgba(37, 99, 235, 0.25);
+
+  /* Shadows & Overlays */
+  --ve-shadow-card: 0 16px 36px -12px rgba(23, 38, 58, 0.08);
+  --ve-shadow-elevated: 0 22px 48px -12px rgba(23, 38, 58, 0.12);
+  --ve-hero-glow: radial-gradient(circle at 75% 25%, rgba(197, 165, 104, 0.12), transparent 55%);
+  --ve-cta-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(238, 242, 247, 0.95) 100%);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--ve-bg-primary);
+  --color-background-secondary: var(--ve-bg-secondary);
+  --color-background-elevated: var(--ve-bg-elevated);
+  --color-background-glass: var(--ve-bg-glass);
+
+  --color-surface: var(--ve-surface);
+  --color-surface-hover: var(--ve-surface-hover);
+  --color-surface-muted: var(--ve-surface-muted);
+  --color-surface-inner: var(--ve-surface-card-inner);
+
+  --color-foreground: var(--ve-text-primary);
+  --color-text-primary: var(--ve-text-primary);
+  --color-text-secondary: var(--ve-text-secondary);
+  --color-text-muted: var(--ve-text-muted);
+  --color-text-on-accent: var(--ve-text-on-accent);
+
+  --color-accent: var(--ve-accent);
+  --color-accent-hover: var(--ve-accent-hover);
+  --color-accent-active: var(--ve-accent-active);
+  --color-accent-subtle: var(--ve-accent-subtle);
+  --color-accent-border: var(--ve-accent-border);
+
+  --color-border: var(--ve-border);
+  --color-border-subtle: var(--ve-border-subtle);
+  --color-border-strong: var(--ve-border-strong);
+
+  --color-btn-primary: var(--ve-btn-primary-bg);
+  --color-btn-primary-hover: var(--ve-btn-primary-hover);
+  --color-btn-primary-text: var(--ve-btn-primary-text);
+  --color-btn-secondary: var(--ve-btn-secondary-bg);
+  --color-btn-secondary-hover: var(--ve-btn-secondary-hover);
+  --color-btn-secondary-text: var(--ve-btn-secondary-text);
+  --color-btn-secondary-border: var(--ve-btn-secondary-border);
+
+  --color-input-bg: var(--ve-input-bg);
+  --color-input-border: var(--ve-input-border);
+
+  --color-status-success: var(--ve-status-success);
+  --color-status-success-bg: var(--ve-status-success-bg);
+  --color-status-success-border: var(--ve-status-success-border);
+
+  --color-status-warning: var(--ve-status-warning);
+  --color-status-warning-bg: var(--ve-status-warning-bg);
+  --color-status-warning-border: var(--ve-status-warning-border);
+
+  --color-status-danger: var(--ve-status-danger);
+  --color-status-danger-bg: var(--ve-status-danger-bg);
+  --color-status-danger-border: var(--ve-status-danger-border);
+
+  --color-status-info: var(--ve-status-info);
+  --color-status-info-bg: var(--ve-status-info-bg);
+  --color-status-info-border: var(--ve-status-info-border);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--ve-bg-primary);
+  color: var(--ve-text-primary);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Custom semantic utility helpers consuming CSS variables */
+.ve-card-shadow {
+  box-shadow: var(--ve-shadow-card);
+}
+
+.ve-elevated-shadow {
+  box-shadow: var(--ve-shadow-elevated);
+}
+
+.ve-hero-backdrop {
+  background-image: var(--ve-hero-glow);
+}
+
+.ve-cta-surface {
+  background-image: var(--ve-cta-gradient);
 }

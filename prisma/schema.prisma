@@ -1,0 +1,551 @@
+// ============================================================================
+// VaultEdge — Prisma Database Schema
+// Canonical specification: docs/DATABASE_SCHEMA.md
+// Financial amounts use exact PostgreSQL DECIMAL(18, 2).
+// All financial records enforce onDelete: Restrict (Zero-Hard-Delete Policy).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 1. Enums (16 Core Domain Enums)
+// ============================================================================
+
+enum UserRole {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+  BLOCKED
+}
+
+enum KycVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum EmploymentStatus {
+  EMPLOYED
+  SELF_EMPLOYED
+  BUSINESS_OWNER
+  STUDENT
+  RETIRED
+  UNEMPLOYED
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+  BUSINESS
+  INTERNAL_TREASURY
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  INACTIVE
+  BLOCKED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  FUND_TRANSFER
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LoanType {
+  PERSONAL
+  HOME
+  AUTO
+  BUSINESS
+  EDUCATION
+}
+
+enum LoanStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum LedgerEntryCategory {
+  PRINCIPAL
+  FEE
+  INTEREST
+  REVERSAL
+}
+
+enum FlagSource {
+  STAFF_MANUAL
+  SYSTEM_RULE
+}
+
+enum FlagStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_SAFE
+  CONFIRMED_SUSPICIOUS
+}
+
+enum NotificationType {
+  MONEY_RECEIVED
+  TRANSFER_COMPLETED
+  DEPOSIT_APPROVED
+  DEPOSIT_REJECTED
+  WITHDRAWAL_APPROVED
+  WITHDRAWAL_REJECTED
+  LOAN_APPROVED
+  LOAN_REJECTED
+  ACCOUNT_STATUS_CHANGED
+  SECURITY_ALERT
+}
+
+// ============================================================================
+// 2. Models (16 Normalized Domain Models)
+// ============================================================================
+
+/// 5.1 User — Core identity, RBAC role, account status, 2FA, and hashed Transaction PIN
+model User {
+  id                 String     @id @default(cuid())
+  email              String     @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  role               UserRole   @default(CUSTOMER)
+  status             UserStatus @default(ACTIVE)
+  transactionPinHash String?
+  pinFailedAttempts  Int        @default(0)
+  pinLockedUntil     DateTime?
+  twoFactorEnabled   Boolean    @default(false)
+  twoFactorSecret    String?
+  lastLoginAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Relations
+  customerProfile            CustomerProfile?            @relation("CustomerUserProfile")
+  verifiedCustomerProfiles   CustomerProfile[]           @relation("StaffVerifiedProfiles")
+  refreshTokens              RefreshToken[]
+  ownedAccounts              BankAccount[]               @relation("AccountOwner")
+  createdAccounts            BankAccount[]               @relation("AccountCreator")
+  initiatedTransactions      Transaction[]               @relation("TransactionInitiator")
+  submittedDepositRequests   DepositRequest[]            @relation("DepositCustomer")
+  reviewedDepositRequests    DepositRequest[]            @relation("DepositReviewer")
+  submittedWithdrawalRequests WithdrawalRequest[]        @relation("WithdrawalCustomer")
+  reviewedWithdrawalRequests WithdrawalRequest[]         @relation("WithdrawalReviewer")
+  customerLoanApplications   LoanApplication[]           @relation("LoanCustomer")
+  staffReviewedLoans         LoanApplication[]           @relation("LoanStaffReviewer")
+  adminDecidedLoans          LoanApplication[]           @relation("LoanAdminDecider")
+  authoredLoanNotes          LoanNote[]                  @relation("LoanNoteAuthor")
+  raisedSuspiciousFlags      SuspiciousTransactionFlag[] @relation("FlagRaisedBy")
+  resolvedSuspiciousFlags    SuspiciousTransactionFlag[] @relation("FlagResolvedBy")
+  notifications              Notification[]
+  updatedSystemSettings      SystemSetting[]             @relation("SystemSettingUpdater")
+  auditLogs                  AuditLog[]                  @relation("AuditLogActor")
+
+  @@index([role, status])
+  @@index([createdAt])
+}
+
+/// 5.2 RefreshToken — Stateful JWT refresh token tracking & revocation
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+/// 5.3 CustomerProfile — Customer demographic, KYC & Bank Staff verification metadata
+model CustomerProfile {
+  id               String                @id @default(cuid())
+  userId           String                @unique
+  verifiedById     String?
+  customerCode     String                @unique
+  phone            String                @unique
+  dateOfBirth      DateTime?
+  addressLine1     String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?
+  nationalIdNumber String?               @unique
+  employmentStatus EmploymentStatus      @default(EMPLOYED)
+  monthlyIncome    Decimal               @default(0.00) @db.Decimal(18, 2)
+  kycStatus        KycVerificationStatus @default(PENDING)
+  kycNotes         String?
+  verifiedAt       DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  user       User  @relation("CustomerUserProfile", fields: [userId], references: [id], onDelete: Restrict)
+  verifiedBy User? @relation("StaffVerifiedProfiles", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@index([kycStatus, createdAt(sort: Desc)])
+}
+
+/// 5.4 BankAccount — Customer & internal bank accounts, cached balance, freeze controls & per-account limits
+model BankAccount {
+  id                        String        @id @default(cuid())
+  userId                    String?
+  createdById               String?
+  accountNumber             String        @unique
+  accountTitle              String
+  accountType               AccountType
+  status                    AccountStatus @default(ACTIVE)
+  isSystemAccount           Boolean       @default(false)
+  currency                  String        @default("USD")
+  balance                   Decimal       @default(0.00) @db.Decimal(18, 2)
+  dailyTransferLimit        Decimal?      @db.Decimal(18, 2)
+  maxSingleTransactionLimit Decimal?      @db.Decimal(18, 2)
+  minBalanceRequired        Decimal?      @db.Decimal(18, 2)
+  frozenReason              String?
+  frozenAt                  DateTime?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  user                 User?               @relation("AccountOwner", fields: [userId], references: [id], onDelete: Restrict)
+  createdBy            User?               @relation("AccountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  outgoingTransactions Transaction[]       @relation("SenderAccount")
+  incomingTransactions Transaction[]       @relation("ReceiverAccount")
+  ledgerEntries        LedgerEntry[]
+  depositRequests      DepositRequest[]
+  withdrawalRequests   WithdrawalRequest[]
+  disbursedLoans       LoanApplication[]   @relation("LoanDisbursementAccount")
+  loanRepayments       LoanRepayment[]     @relation("LoanRepaymentSourceAccount")
+
+  @@index([userId, status])
+  @@index([accountType, status])
+  @@index([isSystemAccount])
+}
+
+/// 5.5 Transaction — Canonical immutable financial transaction header
+model Transaction {
+  id                   String            @id @default(cuid())
+  referenceId          String            @unique
+  idempotencyKey       String?           @unique
+  senderAccountId      String?
+  receiverAccountId    String?
+  initiatedById        String
+  reversedTransactionId String?          @unique
+  type                 TransactionType
+  status               TransactionStatus @default(PENDING)
+  amount               Decimal           @db.Decimal(18, 2)
+  fee                  Decimal           @default(0.00) @db.Decimal(18, 2)
+  totalAmount          Decimal           @db.Decimal(18, 2)
+  description          String?
+  failureReason        String?
+  isFlagged            Boolean           @default(false)
+  executedAt           DateTime          @default(now())
+  createdAt            DateTime          @default(now())
+
+  senderAccount       BankAccount?                @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: Restrict)
+  receiverAccount     BankAccount?                @relation("ReceiverAccount", fields: [receiverAccountId], references: [id], onDelete: Restrict)
+  initiatedBy         User                        @relation("TransactionInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  reversedTransaction Transaction?                @relation("TransactionReversal", fields: [reversedTransactionId], references: [id], onDelete: Restrict)
+  reversalTransaction Transaction?                @relation("TransactionReversal")
+  ledgerEntries       LedgerEntry[]
+  depositRequest      DepositRequest?
+  withdrawalRequest   WithdrawalRequest?
+  disbursedLoan       LoanApplication?            @relation("LoanDisbursementTransaction")
+  loanRepayment       LoanRepayment?
+  suspiciousFlags     SuspiciousTransactionFlag[]
+
+  @@index([senderAccountId, executedAt(sort: Desc)])
+  @@index([receiverAccountId, executedAt(sort: Desc)])
+  @@index([type, status, executedAt(sort: Desc)])
+  @@index([isFlagged, executedAt(sort: Desc)])
+}
+
+/// 5.6 LedgerEntry — Immutable double-entry per-account DEBIT/CREDIT posting
+model LedgerEntry {
+  id            String              @id @default(cuid())
+  transactionId String
+  accountId     String
+  direction     LedgerDirection
+  entryCategory LedgerEntryCategory @default(PRINCIPAL)
+  amount        Decimal             @db.Decimal(18, 2)
+  balanceBefore Decimal             @db.Decimal(18, 2)
+  balanceAfter  Decimal             @db.Decimal(18, 2)
+  description   String?
+  createdAt     DateTime            @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  account     BankAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([transactionId, accountId, direction, entryCategory])
+  @@index([accountId, createdAt(sort: Desc)])
+}
+
+/// 5.7 DepositRequest — Customer deposit submission & Admin/Staff approval workflow
+model DepositRequest {
+  id               String        @id @default(cuid())
+  requestReference String        @unique
+  idempotencyKey   String?       @unique
+  accountId        String
+  customerId       String
+  reviewedById     String?
+  transactionId    String?       @unique
+  amount           Decimal       @db.Decimal(18, 2)
+  description      String?
+  status           RequestStatus @default(PENDING)
+  reviewNote       String?
+  requestedAt      DateTime      @default(now())
+  reviewedAt       DateTime?
+
+  account     BankAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  customer    User         @relation("DepositCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  reviewedBy  User?        @relation("DepositReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([status, requestedAt(sort: Desc)])
+  @@index([customerId, requestedAt(sort: Desc)])
+  @@index([accountId, status])
+}
+
+/// 5.8 WithdrawalRequest — Customer withdrawal submission & Admin/Staff approval workflow
+model WithdrawalRequest {
+  id               String        @id @default(cuid())
+  requestReference String        @unique
+  idempotencyKey   String?       @unique
+  accountId        String
+  customerId       String
+  reviewedById     String?
+  transactionId    String?       @unique
+  amount           Decimal       @db.Decimal(18, 2)
+  description      String?
+  status           RequestStatus @default(PENDING)
+  reviewNote       String?
+  requestedAt      DateTime      @default(now())
+  reviewedAt       DateTime?
+
+  account     BankAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  customer    User         @relation("WithdrawalCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  reviewedBy  User?        @relation("WithdrawalReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([status, requestedAt(sort: Desc)])
+  @@index([customerId, requestedAt(sort: Desc)])
+  @@index([accountId, status])
+}
+
+/// 5.9 LoanApplication — Unified loan lifecycle from application to staff review, admin decision, disbursement & completion
+model LoanApplication {
+  id                        String           @id @default(cuid())
+  loanReference             String           @unique
+  idempotencyKey            String?          @unique
+  customerId                String
+  disbursementAccountId     String
+  reviewedByStaffId         String?
+  decidedByAdminId          String?
+  disbursementTransactionId String?          @unique
+  loanType                  LoanType
+  requestedAmount           Decimal          @db.Decimal(18, 2)
+  approvedAmount            Decimal?         @db.Decimal(18, 2)
+  interestRate              Decimal          @default(8.50) @db.Decimal(5, 2)
+  durationMonths            Int
+  monthlyIncome             Decimal          @db.Decimal(18, 2)
+  employmentStatus          EmploymentStatus
+  description               String
+  status                    LoanStatus       @default(PENDING)
+  totalPayableAmount        Decimal?         @db.Decimal(18, 2)
+  monthlyInstallment        Decimal?         @db.Decimal(18, 2)
+  totalRepaidAmount         Decimal          @default(0.00) @db.Decimal(18, 2)
+  remainingBalance          Decimal          @default(0.00) @db.Decimal(18, 2)
+  rejectionReason           String?
+  forwardedForApprovalAt    DateTime?
+  decidedAt                 DateTime?
+  disbursedAt               DateTime?
+  completedAt               DateTime?
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+
+  customer                User                    @relation("LoanCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  disbursementAccount     BankAccount             @relation("LoanDisbursementAccount", fields: [disbursementAccountId], references: [id], onDelete: Restrict)
+  reviewedByStaff         User?                   @relation("LoanStaffReviewer", fields: [reviewedByStaffId], references: [id], onDelete: SetNull)
+  decidedByAdmin          User?                   @relation("LoanAdminDecider", fields: [decidedByAdminId], references: [id], onDelete: SetNull)
+  disbursementTransaction Transaction?            @relation("LoanDisbursementTransaction", fields: [disbursementTransactionId], references: [id], onDelete: Restrict)
+  notes                   LoanNote[]
+  repaymentSchedules      LoanRepaymentSchedule[]
+  repayments              LoanRepayment[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([customerId, status])
+}
+
+/// 5.10 LoanNote — Internal Bank Staff & Admin loan review notes
+model LoanNote {
+  id                String   @id @default(cuid())
+  loanApplicationId String
+  authorId          String
+  note              String
+  isInternal        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  loanApplication LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Restrict)
+  author          User            @relation("LoanNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([loanApplicationId, createdAt(sort: Asc)])
+}
+
+/// 5.11 LoanRepaymentSchedule — Generated monthly installment schedule for active loans
+model LoanRepaymentSchedule {
+  id                String            @id @default(cuid())
+  loanApplicationId String
+  installmentNumber Int
+  dueDate           DateTime
+  principalAmount   Decimal           @db.Decimal(18, 2)
+  interestAmount    Decimal           @db.Decimal(18, 2)
+  totalInstallment  Decimal           @db.Decimal(18, 2)
+  paidAmount        Decimal           @default(0.00) @db.Decimal(18, 2)
+  status            InstallmentStatus @default(PENDING)
+  paidAt            DateTime?
+
+  loanApplication LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Restrict)
+  repayments      LoanRepayment[]
+
+  @@unique([loanApplicationId, installmentNumber])
+  @@index([loanApplicationId, status, dueDate(sort: Asc)])
+}
+
+/// 5.12 LoanRepayment — Recorded loan repayment linked to LoanApplication, Schedule & Transaction
+model LoanRepayment {
+  id                    String   @id @default(cuid())
+  loanApplicationId     String
+  scheduleId            String?
+  transactionId         String   @unique
+  paidFromAccountId     String
+  amountPaid            Decimal  @db.Decimal(18, 2)
+  principalComponent    Decimal  @default(0.00) @db.Decimal(18, 2)
+  interestComponent     Decimal  @default(0.00) @db.Decimal(18, 2)
+  remainingBalanceAfter Decimal  @db.Decimal(18, 2)
+  paidAt                DateTime @default(now())
+
+  loanApplication LoanApplication        @relation(fields: [loanApplicationId], references: [id], onDelete: Restrict)
+  schedule        LoanRepaymentSchedule? @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  transaction     Transaction            @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  paidFromAccount BankAccount            @relation("LoanRepaymentSourceAccount", fields: [paidFromAccountId], references: [id], onDelete: Restrict)
+
+  @@index([loanApplicationId, paidAt(sort: Desc)])
+  @@index([scheduleId])
+}
+
+/// 5.13 SuspiciousTransactionFlag — Manual Bank Staff flags & rule-based suspicious transaction flags
+model SuspiciousTransactionFlag {
+  id                String     @id @default(cuid())
+  transactionId     String
+  flaggedById       String?
+  resolvedByAdminId String?
+  source            FlagSource
+  ruleCode          String?
+  reason            String
+  status            FlagStatus @default(OPEN)
+  resolutionNote    String?
+  createdAt         DateTime   @default(now())
+  resolvedAt        DateTime?
+
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  flaggedBy       User?       @relation("FlagRaisedBy", fields: [flaggedById], references: [id], onDelete: SetNull)
+  resolvedByAdmin User?       @relation("FlagResolvedBy", fields: [resolvedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([transactionId])
+}
+
+/// 5.14 Notification — Customer event notifications
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  referenceId String?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+}
+
+/// 5.15 SystemSetting — Bank-wide financial configuration & default limits managed by Admin
+model SystemSetting {
+  id                        String   @id @default("default")
+  updatedByAdminId          String?
+  defaultDailyTransferLimit Decimal  @default(25000.00) @db.Decimal(18, 2)
+  defaultMaxSingleTransfer  Decimal  @default(10000.00) @db.Decimal(18, 2)
+  defaultMinAccountBalance  Decimal  @default(100.00) @db.Decimal(18, 2)
+  transferFeeFlat           Decimal  @default(0.00) @db.Decimal(18, 2)
+  suspiciousAmountThreshold Decimal  @default(15000.00) @db.Decimal(18, 2)
+  defaultLoanInterestRate   Decimal  @default(8.50) @db.Decimal(5, 2)
+  updatedAt                 DateTime @updatedAt
+
+  updatedByAdmin User? @relation("SystemSettingUpdater", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
+}
+
+/// 5.16 AuditLog — Immutable administrative and security action trail
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorId    String?
+  actorRole  UserRole?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  actor User? @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+}
