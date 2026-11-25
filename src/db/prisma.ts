@@ -18,8 +18,10 @@ const globalForPrisma = globalThis as unknown as {
 
 function getPrismaClient(): PrismaClient {
   if (!globalForPrisma.prisma) {
-    // Validate server environment configuration lazily at runtime (not during `next build` page-data collection)
-    getServerEnv();
+    // Validate server environment configuration lazily at runtime (never during `next build`)
+    if (process.env.NEXT_PHASE !== "phase-production-build") {
+      getServerEnv();
+    }
     globalForPrisma.prisma = new PrismaClient({
       log:
         process.env.NODE_ENV === "development"
@@ -32,6 +34,15 @@ function getPrismaClient(): PrismaClient {
 
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop, receiver) {
+    // Prevent module-evaluation / thenable checks during `next build` from instantiating PrismaClient
+    if (
+      prop === "then" ||
+      prop === "__esModule" ||
+      prop === "toJSON" ||
+      typeof prop === "symbol"
+    ) {
+      return undefined;
+    }
     const client = getPrismaClient();
     const value = Reflect.get(client, prop, receiver);
     return typeof value === "function" ? value.bind(client) : value;
