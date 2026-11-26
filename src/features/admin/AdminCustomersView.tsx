@@ -22,9 +22,8 @@ function getInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length === 0) return "CU";
   if (parts.length === 1) return (parts[0]?.slice(0, 2) ?? "CU").toUpperCase();
-  return `${parts[0]?.charAt(0) ?? "C"}${
-    parts[parts.length - 1]?.charAt(0) ?? "U"
-  }`.toUpperCase();
+  return `${parts[0]?.charAt(0) ?? "C"}${parts[parts.length - 1]?.charAt(0) ?? "U"
+    }`.toUpperCase();
 }
 
 function getTierSubtitle(customer: AdminCustomerListItemDTO): string {
@@ -94,13 +93,13 @@ export function AdminCustomersView({
     tierFilter === "ALL"
       ? rawCustomers
       : rawCustomers.filter((c) => {
-          const tierLabel = getTierSubtitle(c);
-          if (tierFilter === "CORPORATE")
-            return tierLabel === "Corporate Institutional";
-          if (tierFilter === "OBSIDIAN")
-            return tierLabel === "Obsidian Private";
-          return tierLabel === "Personal Standard";
-        });
+        const tierLabel = getTierSubtitle(c);
+        if (tierFilter === "CORPORATE")
+          return tierLabel === "Corporate Institutional";
+        if (tierFilter === "OBSIDIAN")
+          return tierLabel === "Obsidian Private";
+        return tierLabel === "Personal Standard";
+      });
 
   const activeCustomer =
     displayedCustomers.find((c) => c.id === selectedCustomerId) ??
@@ -195,24 +194,34 @@ export function AdminCustomersView({
 
       {/* 2. Search & Filter Toolbar Card (Matches Stitch Screenshot) */}
       <div className="rounded-2xl border border-border bg-surface p-4 ve-card-shadow">
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-          {/* Left: Search Input */}
-          <div className="relative flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-muted">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          {/* Left: Search Input (Always full/usable width, never collapses) */}
+          <div className="relative min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => {
+                const inputEl = document.getElementById("customer-search-input");
+                inputEl?.focus();
+              }}
+              aria-label="Focus search input"
+              className="absolute inset-y-0 left-0 flex w-10 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
-                className="h-4 w-4"
+                className="h-4 w-4 shrink-0"
                 aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
-            </span>
+            </button>
+
             <input
+              id="customer-search-input"
               type="search"
               value={searchInput}
               onChange={(e) => {
@@ -221,14 +230,14 @@ export function AdminCustomersView({
               }}
               placeholder="Search by Customer Name, Email, Code, or Phone..."
               aria-label="Search customers by name, email, code, or phone"
-              className="h-10 w-full rounded-xl border border-input-border bg-input-bg pl-10 pr-4 text-xs text-text-primary placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
+              className="h-10 w-full min-w-[220px] rounded-xl border border-input-border bg-input-bg pl-10 pr-4 text-xs text-text-primary placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
             />
           </div>
 
           {/* Right: Status Filter + Tier Filter + KYC Attributes + Audit Export */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 xl:shrink-0">
             {/* Status Dropdown */}
-            <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface-inner px-3 font-mono text-xs text-text-secondary">
+            <label className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface-inner px-3 font-mono text-xs text-text-secondary">
               <span className="text-[10px] uppercase tracking-wider text-text-muted">
                 STATUS:
               </span>
@@ -247,97 +256,68 @@ export function AdminCustomersView({
                 <option value="ACTIVE" className="bg-surface text-text-primary">
                   Active Sovereign
                 </option>
-                <option
-                  value="DEACTIVATED"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="DEACTIVATED" className="bg-surface text-text-primary">
                   Escalation / Suspended
                 </option>
-                <option
-                  value="BLOCKED"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="BLOCKED" className="bg-surface text-text-primary">
                   FATF Sanction Block
                 </option>
               </select>
             </label>
 
             {/* Tier Dropdown */}
-            <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface-inner px-3 font-mono text-xs text-text-secondary">
+            <label className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface-inner px-3 font-mono text-xs text-text-secondary">
               <span className="text-[10px] uppercase tracking-wider text-text-muted">
                 TIER:
               </span>
               <select
                 aria-label="Filter customers by banking tier"
                 value={tierFilter}
-                onChange={(e) =>
+                onChange={(e) => {
                   setTierFilter(
-                    e.target.value as
-                      | "ALL"
-                      | "PERSONAL"
-                      | "OBSIDIAN"
-                      | "CORPORATE"
-                  )
-                }
-                className="bg-transparent font-semibold text-text-primary focus:outline-none"
+                    e.target.value as "ALL" | "PERSONAL" | "OBSIDIAN" | "CORPORATE"
+                  );
+                  setPage(1);
+                }}
+                className="max-w-[175px] truncate bg-transparent font-semibold text-text-primary focus:outline-none"
               >
                 <option value="ALL" className="bg-surface text-text-primary">
-                  All Tiers (Personal / Obsidian / Corp)
+                  All Tiers
                 </option>
-                <option
-                  value="OBSIDIAN"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="OBSIDIAN" className="bg-surface text-text-primary">
                   Obsidian Private
                 </option>
-                <option
-                  value="CORPORATE"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="CORPORATE" className="bg-surface text-text-primary">
                   Corporate Institutional
                 </option>
-                <option
-                  value="PERSONAL"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="PERSONAL" className="bg-surface text-text-primary">
                   Personal Standard
                 </option>
               </select>
             </label>
 
             {/* KYC Attributes Filter Pill */}
-            <label className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-btn-secondary-border bg-btn-secondary px-3 font-mono text-xs font-semibold text-btn-secondary-text transition-colors hover:border-accent">
-              <span>☷</span>
+            <label className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-btn-secondary-border bg-btn-secondary px-3 font-mono text-xs font-semibold text-btn-secondary-text transition-colors hover:border-accent">
+              <span className="shrink-0">☷</span>
               <select
                 aria-label="Filter customers by KYC verification status"
                 value={kycFilter}
                 onChange={(e) => {
-                  setKycFilter(
-                    e.target.value as KycVerificationStatus | "ALL"
-                  );
+                  setKycFilter(e.target.value as KycVerificationStatus | "ALL");
                   setPage(1);
                 }}
                 className="bg-transparent focus:outline-none"
               >
                 <option value="ALL" className="bg-surface text-text-primary">
-                  Attributes (All KYC)
+                  All KYC
                 </option>
-                <option
-                  value="VERIFIED"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="VERIFIED" className="bg-surface text-text-primary">
                   KYC: Verified
                 </option>
-                <option
-                  value="PENDING"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="PENDING" className="bg-surface text-text-primary">
                   KYC: Pending
                 </option>
-                <option
-                  value="REJECTED"
-                  className="bg-surface text-text-primary"
-                >
+                <option value="REJECTED" className="bg-surface text-text-primary">
                   KYC: Rejected
                 </option>
               </select>
@@ -347,14 +327,31 @@ export function AdminCustomersView({
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-btn-secondary-border bg-btn-secondary px-3.5 font-mono text-xs font-semibold text-btn-secondary-text transition-colors hover:border-accent hover:bg-btn-secondary-hover"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-btn-secondary-border bg-btn-secondary px-3.5 font-mono text-xs font-semibold text-btn-secondary-text transition-colors hover:border-accent hover:bg-btn-secondary-hover"
             >
-              <span>⇩</span>
-              <span>Audit Export</span>
+              <span className="shrink-0">⇩</span>
+              <span className="whitespace-nowrap">Audit Export</span>
             </button>
           </div>
         </div>
       </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
       {/* 3. Main Split Grid: Active Ledger Accounts Directory (Left 7 cols) + Live Inspector (Right 5 cols) */}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
@@ -438,21 +435,19 @@ export function AdminCustomersView({
                         <tr
                           key={customer.id}
                           onClick={() => setSelectedCustomerId(customer.id)}
-                          className={`cursor-pointer transition-colors ${
-                            isSelected
+                          className={`cursor-pointer transition-colors ${isSelected
                               ? "bg-surface-hover"
                               : "hover:bg-surface-inner"
-                          }`}
+                            }`}
                         >
                           {/* 1. Customer ID & Initials Avatar */}
                           <td className="py-4 pr-3 align-middle">
                             <div className="flex items-center gap-3">
                               <span
-                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border font-mono text-xs font-bold transition-colors ${
-                                  isSelected
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border font-mono text-xs font-bold transition-colors ${isSelected
                                     ? "border-accent bg-btn-primary text-btn-primary-text"
                                     : "border-border bg-surface-inner text-text-secondary"
-                                }`}
+                                  }`}
                               >
                                 {getInitials(customer.fullName)}
                               </span>
@@ -471,13 +466,12 @@ export function AdminCustomersView({
                           <td className="py-4 px-3 align-middle">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                  customer.status === "ACTIVE"
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${customer.status === "ACTIVE"
                                     ? "bg-status-info"
                                     : customer.status === "DEACTIVATED"
                                       ? "bg-accent"
                                       : "bg-status-danger"
-                                }`}
+                                  }`}
                                 title={`Status: ${customer.status}`}
                               />
                               <p className="font-bold text-text-primary">
@@ -507,14 +501,14 @@ export function AdminCustomersView({
                             <p className="mt-0.5 font-mono text-[10px] text-text-muted">
                               {accountTypesList.length > 0
                                 ? accountTypesList
-                                    .map((t) =>
-                                      t === "SAVINGS"
-                                        ? "Savings"
-                                        : t === "CURRENT"
-                                          ? "Current"
-                                          : "Business"
-                                    )
-                                    .join(" • ")
+                                  .map((t) =>
+                                    t === "SAVINGS"
+                                      ? "Savings"
+                                      : t === "CURRENT"
+                                        ? "Current"
+                                        : "Business"
+                                  )
+                                  .join(" • ")
                                 : formatCurrencyFull(customer.totalBalance)}
                             </p>
                           </td>
